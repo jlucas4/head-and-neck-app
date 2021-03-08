@@ -54,7 +54,7 @@ visitNames <- function(f) {
 
 #Backend data wrangling and cleanup - see hNQol.Rmd for more detail
 #Import dataset
-hN <- read_csv('/Users/jakelucas/Documents/R_Data/HeadNeck/headNeckApp/head-neck-app/HeadAndNeckCancerReg_DATA_03.08.21.csv') 
+hN <- read_csv('/Users/jakelucas/Documents/R_Data/HeadNeck/headNeckApp/head-and-neck-app/HeadAndNeckCancerReg_DATA_03.08.21.csv') 
 
 #Clean up the event name vector
 hN$redcap_event_name %<>% str_replace('_arm_1', '') 
@@ -183,25 +183,38 @@ uwQolPlotPhysical +
 recordIds <- setNames(hnQolScored$record_id, singleSub$record_id)
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(
-  # Application title
-  titlePanel("Head and Neck - UW QOL Data"),
-  
-  fluidRow(
-    column(
-      width = 6, 
-      selectInput('code', 'Record ID', choices = hnQolScored$record_id)
-      )
+ui <- dashboardPage(
+  # dashboard titel
+  dashboardHeader(title = "Head and Neck Database App"),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("\'Physical\' Score", tabName = "dashboardP", icon = icon("dashboard")),
+      menuItem("\'Social\' Score", tabName = "dashboardS", icon = icon("dashboard"))
+    )
   ),
-  mainPanel(
-    width = 12,
-    plotOutput("event_pScore")
-    ), 
-  mainPanel(
-    width = 12,
-    plotOutput("event_sScore")
+  dashboardBody(
+    titlePanel("Head and Neck - UW QOL Data"),
+    fluidRow(
+      column(
+        width = 6,
+        selectInput('code', 'Record ID', choices = hnQolScored$record_id)
+      )
+    ),
+    #Adding tab content
+    tabItems(
+      tabItem(tabName = "dashboardP",
+            box(
+              width = 12,
+              plotOutput("event_pScore")
+            )),
+      tabItem(tabName = "dashboardS",
+            box(
+              width = 12,
+              plotOutput("event_sScore")
+            ))
+    ))
   )
-  )
+
 
 
 # Define server logic required to draw a histogram
