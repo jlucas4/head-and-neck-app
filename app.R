@@ -185,11 +185,14 @@ recordIds <- setNames(hnQolScored$record_id, singleSub$record_id)
 # Define UI for application that draws a histogram
 ui <- dashboardPage(
   # dashboard titel
-  dashboardHeader(title = "Head and Neck Database App"),
+  dashboardHeader(
+    title = "Head and Neck Database App",
+    titleWidth = 450
+    ),
   dashboardSidebar(
     sidebarMenu(
-      menuItem("\'Physical\' Score", tabName = "dashboardP", icon = icon("dashboard")),
-      menuItem("\'Social\' Score", tabName = "dashboardS", icon = icon("dashboard"))
+      menuItem("\'Physical\' Score", tabName = "dashboardP", icon = icon("object-align-bottom", lib = "glyphicon")),
+      menuItem("\'Social\' Score", tabName = "dashboardS", icon = icon("hand-holding-medical"))
     )
   ),
   dashboardBody(
