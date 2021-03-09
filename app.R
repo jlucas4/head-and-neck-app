@@ -208,7 +208,7 @@ uwQolPlotPhysical +
   geom_line(data = singleSub, group = 1, color = 'red', alpha = .5) #individual pt
 
 
-recordIds <- setNames(hnQolScored$record_id, singleSub$record_id)
+recordIds <- c(" ", hnQolScored$record_id)
 primarySite <- c("All sites", levels(hnQolScored$primarySite))
 
 ########################################Application############################################
@@ -248,7 +248,7 @@ ui <- dashboardPage(
     fluidRow(
       column(
         width = 6,
-        selectInput('code', 'Record ID', choices = hnQolScored$record_id)
+        selectInput('code', 'Record ID', choices = recordIds, selected = NULL)
       ),
       column(
         width = 6,
