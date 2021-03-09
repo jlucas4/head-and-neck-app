@@ -87,11 +87,11 @@ hnSiteKey <- hNFiltered %>%
   select(c(record_id, previsit_1)) %>%
   rename(primarySite = previsit_1)
 
-#Then applying function to data - based on Sykes email 
+#Then applying function to data
 hNFiltered$redcap_event_name %<>% as_factor %>%
   fct_relabel(visitNames)
 
-#This recodes and scores the UW QOL Survey Data
+#This recodes and scores the UW QOL Survey Data - based on Sykes email
 hnQolScored <- hNFiltered %>%
   mutate(
     across(
@@ -228,6 +228,23 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     titlePanel("Head and Neck - UW QOL Data"),
+    withTags({
+      div(class = "header",
+        p("Thanks for having a look around this work-in-progress application. 
+          The plotted output below is based on our head and neck cancer database which has longitudinally
+          been collected over the past several years. A small subset of that data is displayed here, 
+          based on the", a(href = "http://www.hancsupport.com/sites/default/files/assets/pages/UW-QOL-update_2012.pdf", "University of Washington Quality of Life"),
+          "(UW-QOL) questionnaire administered to our patients at each visit."),
+        p("Click the sidebars to see two subsets of the survey data - there is a section examining patient-specific 
+          subjective physical effects and a section examining social effects. Within each section, you can look at the data as a whole,
+          or a subset of the data based on primary tumor site. The default selection is \'All sites\'"),
+        p("Finally, each individual patient has a unique de-identified \'record-id\'. Select a record id
+          to see the individual patient's data (in red) plotted against the whole dataset - be aware that not all records have plottable data 
+          (try out", tags$b("#220"), "and", tags$b("#258"), "to see working examples). The faded gray lines 
+          represent individual patients and create a \'sphagetti plot\' in the background. The dark line and triangles
+          represent the median of the dataset, and the error bars span 1 standard deviation in either direction.")
+      )
+    }),
     fluidRow(
       column(
         width = 6,
@@ -235,23 +252,27 @@ ui <- dashboardPage(
       ),
       column(
         width = 6,
-        selectInput('site', 'Primary Tumor Site', choices = primarySite, selected = primarySite[1])
+        selectInput('site', 'Primary Tumor Site', choices = primarySite[c(1, 2, 4, 6, 7)], selected = primarySite[1])
       )
     ),
     #Adding tab content
-    tabItems(
-      tabItem(tabName = "dashboardP",
+    fluidRow(
+      tabItems(
+        tabItem(tabName = "dashboardP",
             box(
               width = 12,
+              tags$head(
+                tags$style(HTML(" #tabBox { height:90vh !important; } "))
+              ),
               plotOutput("event_pScore")
             )),
-      tabItem(tabName = "dashboardS",
+        tabItem(tabName = "dashboardS",
             box(
               width = 12,
               plotOutput("event_sScore")
             ))
     ))
-  )
+  ))
 
 
 
