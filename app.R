@@ -9,6 +9,7 @@
 
 library(shiny)
 library(shinydashboard)
+library(rsconnect)
 library(ggplot2)
 library(plyr)
 library(dplyr)
@@ -54,7 +55,7 @@ visitNames <- function(f) {
 
 #Backend data wrangling and cleanup - see hNQol.Rmd for more detail
 #Import dataset
-hN <- read_csv('/Users/jakelucas/Documents/R_Data/HeadNeck/headNeckApp/head-and-neck-app/HeadAndNeckCancerReg_DATA_03.08.21.csv') 
+hN <- read_csv('HeadAndNeckCancerReg_DATA_03.08.21.csv') 
 
 #Clean up the event name vector
 hN$redcap_event_name %<>% str_replace('_arm_1', '') 
@@ -62,7 +63,29 @@ hN$redcap_event_name %<>% str_replace('_arm_1', '')
 #Removed 'postvisit_1' from dataset since no surveys collected at this time point
 hNFiltered <- hN %>%
   filter(!(redcap_event_name == 'postvisit_1')) %>%
-  select(c(1:2, 47:73))
+  select(c(1:2, 47:73, 209:217, 223))
+
+#Create key-value pairs so that primary site values inherit into all visits
+hnSiteKey <- hNFiltered %>%
+  mutate(
+    primarySite = as_factor(
+      case_when(
+        site___1 == 1 ~ 'Oral Cavity',
+        site___2 == 1 ~ 'Oropharynx',
+        site___3 == 1 ~ 'Hypopharynx',
+        site___4 == 1 ~ 'Larynx',
+        site___5 == 1 ~ 'Nasal Cavity',
+        site___6 == 1 ~ 'Nasopharynx',
+        site___7 == 1 ~ 'Cutaneous',
+        site___8 == 1 ~ 'Other',
+        site___9 == 1 ~ 'Unknown Primary'
+      )
+    )
+  ) %>%
+  select(c(record_id, redcap_event_name, primarySite)) %>%
+  pivot_wider(names_from = redcap_event_name, values_from = primarySite) %>%
+  select(c(record_id, previsit_1)) %>%
+  rename(primarySite = previsit_1)
 
 #Then applying function to data - based on Sykes email 
 hNFiltered$redcap_event_name %<>% as_factor %>%
@@ -126,7 +149,8 @@ hnQolScored <- hNFiltered %>%
              c(anxiety, mood, pain, activity, recreation, shoulder)
       ), na.rm = TRUE
     )
-  )
+  ) %>% 
+  left_join(hnSiteKey, by = "record_id") #Last line inserts primary site values
 
 #Grouped stats summaries of the data for separate geom plots
 groupedQolP <- hnQolScored %>%
@@ -141,6 +165,10 @@ groupedQolS <- hnQolScored %>%
 singleSub <- hnQolScored %>%
   filter(record_id == 258) #'good' example
 #filter(record_id == 220) #'bad' example
+
+#KEY CODE - Filter by site - Need to make this reactive
+hNQolScoredSite <- hnQolScored %>%
+  filter(primarySite == 'Oral Cavity')
 
 #ggplot items
 uwQolPlotPhysical <- ggplot(hnQolScored, aes(redcap_event_name, uwPhysical))
@@ -181,7 +209,10 @@ uwQolPlotPhysical +
 
 
 recordIds <- setNames(hnQolScored$record_id, singleSub$record_id)
+primarySite <- c("All sites", levels(hnQolScored$primarySite))
 
+########################################Application############################################
+########################################User Interface#########################################
 # Define UI for application that draws a histogram
 ui <- dashboardPage(
   # dashboard titel
@@ -201,6 +232,10 @@ ui <- dashboardPage(
       column(
         width = 6,
         selectInput('code', 'Record ID', choices = hnQolScored$record_id)
+      ),
+      column(
+        width = 6,
+        selectInput('site', 'Primary Tumor Site', choices = primarySite, selected = primarySite[1])
       )
     ),
     #Adding tab content
@@ -220,13 +255,30 @@ ui <- dashboardPage(
 
 
 
-# Define server logic required to draw a histogram
+########################################Reactive Data########################################
 server <- function(input, output) {
+  
+  hnQolScoredR <- reactive({
+    if (input$site != "All sites") {
+      hnQolScored %<>% 
+        filter(primarySite == input$site)
+    } else {
+      hnQolScored 
+    }
+  })
   
   singleSub <- reactive(hnQolScored %>% 
                           filter(record_id == input$code)) 
+  
+  
+  filterSite <- reactive(
+    hnQolScored() %>%
+      filter(primarySite == input$site)
+  )
+
+########################################Reactive Output#######################################
   output$event_pScore <- renderPlot({
-    hnQolScored %>%
+    hnQolScoredR() %>%
       ggplot(aes(redcap_event_name, uwPhysical)) + 
       geom_line(aes(group = record_id), color = 'gray') + 
       stat_summary(fun.data = median_sd, geom = "errorbar", size = 1, width=0.1) +
@@ -239,7 +291,7 @@ server <- function(input, output) {
     })
   
   output$event_sScore <- renderPlot({
-    hnQolScored %>%
+    hnQolScoredR() %>%
       ggplot(aes(redcap_event_name, uwSocial)) +
       geom_line(aes(group = record_id), color = 'gray') + 
       stat_summary(fun.data = median_sd, geom = "errorbar", size = 1, width=0.1) +
