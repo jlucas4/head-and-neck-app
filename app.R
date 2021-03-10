@@ -23,24 +23,28 @@ library(grid)
 
 #Some functions written for this code 
 #Stat functions
-median_sd = function(x, n=1) {
+median_sd <- function(x, n=1) {
   tibble(y = median(x),
          sd = sd(x),
          ymin = y - n*sd,
          ymax = y + n*sd)
 }
 
-se = function(x, ...) {
+se <- function(x, ...) {
   sqrt(var(x, ...)/length(x))
 }
 
 
 
-mean_se = function(x) {
+mean_se <- function(x) {
   tibble(y = mean(x), 
          se = se(x),
          ymin = y - se,
          ymax = y + se)
+}
+
+singleTextValue <- function(df) {
+  df[[1]]
 }
 
 #Function to rename factor levels for redcap_event_name
@@ -86,6 +90,26 @@ hnSiteKey <- hNFiltered %>%
   pivot_wider(names_from = redcap_event_name, values_from = primarySite) %>%
   select(c(record_id, previsit_1)) %>%
   rename(primarySite = previsit_1)
+
+#Key-Value Pairs for Staging Info
+hnStageKey <- hNFiltered %>%
+  mutate(
+    overallStage = as_factor(
+        case_when(
+          overall_stage == 1 ~ '0',
+          overall_stage == 2 ~ 'I',
+          overall_stage == 3 ~ 'II',
+          overall_stage == 4 ~ 'III',
+          overall_stage == 5 ~ 'IVa',
+          overall_stage == 6 ~ 'IVb',
+          overall_stage == 7 ~ 'IVc'
+        )
+      )
+    ) %>%
+  select(c(record_id, redcap_event_name, overallStage)) %>%
+  pivot_wider(names_from = redcap_event_name, values_from = overallStage) %>%
+  select(c(record_id, previsit_1)) %>%
+  rename(overallStage = previsit_1)
 
 #Then applying function to data
 hNFiltered$redcap_event_name %<>% as_factor %>%
@@ -150,7 +174,9 @@ hnQolScored <- hNFiltered %>%
       ), na.rm = TRUE
     )
   ) %>% 
-  left_join(hnSiteKey, by = "record_id") #Last line inserts primary site values
+  left_join(hnSiteKey, by = "record_id") %>% 
+  left_join(hnStageKey, by = "record_id") 
+#Last 2 lines inserts primary site and staging values
 
 #Grouped stats summaries of the data for separate geom plots
 groupedQolP <- hnQolScored %>%
@@ -163,7 +189,12 @@ groupedQolS <- hnQolScored %>%
 
 #KEY CODE - Single Record - Will need to make this reactive for app
 singleSub <- hnQolScored %>%
-  filter(record_id == 258) #'good' example
+  filter(record_id == 258) %>%
+  select(primarySite) %>%
+  mutate(across(primarySite, as.character)) %>%
+  unique()
+
+#'good' example
 #filter(record_id == 220) #'bad' example
 
 #KEY CODE - Filter by site - Need to make this reactive
@@ -210,6 +241,25 @@ uwQolPlotPhysical +
 
 recordIds <- c(" ", hnQolScored$record_id)
 primarySite <- c("All sites", levels(hnQolScored$primarySite))
+stages <- c("All stages", levels(hnQolScored$overall_stage))
+appGreeting <- 
+  withTags({
+    div(class = "header",
+        p("Thanks for having a look around this work-in-progress application. 
+          The plotted output below is based on our head and neck cancer database which has longitudinally
+          been collected over the past several years. A small subset of that data is displayed here, 
+          based on the", a(href = "http://www.hancsupport.com/sites/default/files/assets/pages/UW-QOL-update_2012.pdf", "University of Washington Quality of Life"),
+          "(UW-QOL) questionnaire administered to our patients at each visit."),
+        p("Click the sidebars to see two subsets of the survey data - there is a section examining patient-specific 
+          subjective physical effects and a section examining social effects. Within each section, you can look at the data as a whole,
+          or a subset of the data based on primary tumor site. The default selection is \'All sites\'"),
+        p("Finally, each individual patient has a unique de-identified \'record-id\'. Select a record id
+          to see the individual patient's data (in red) plotted against the whole dataset - be aware that not all records have plottable data 
+          (try out", tags$b("#220"), "and", tags$b("#258"), "to see working examples). The faded gray lines 
+          represent individual patients and create a \'sphagetti plot\' in the background. The dark line and triangles
+          represent the median of the dataset, and the error bars span 1 standard deviation in either direction.")
+    )
+  })
 
 ########################################Application############################################
 ########################################User Interface#########################################
@@ -228,42 +278,34 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     titlePanel("Head and Neck - UW QOL Data"),
-    withTags({
-      div(class = "header",
-        p("Thanks for having a look around this work-in-progress application. 
-          The plotted output below is based on our head and neck cancer database which has longitudinally
-          been collected over the past several years. A small subset of that data is displayed here, 
-          based on the", a(href = "http://www.hancsupport.com/sites/default/files/assets/pages/UW-QOL-update_2012.pdf", "University of Washington Quality of Life"),
-          "(UW-QOL) questionnaire administered to our patients at each visit."),
-        p("Click the sidebars to see two subsets of the survey data - there is a section examining patient-specific 
-          subjective physical effects and a section examining social effects. Within each section, you can look at the data as a whole,
-          or a subset of the data based on primary tumor site. The default selection is \'All sites\'"),
-        p("Finally, each individual patient has a unique de-identified \'record-id\'. Select a record id
-          to see the individual patient's data (in red) plotted against the whole dataset - be aware that not all records have plottable data 
-          (try out", tags$b("#220"), "and", tags$b("#258"), "to see working examples). The faded gray lines 
-          represent individual patients and create a \'sphagetti plot\' in the background. The dark line and triangles
-          represent the median of the dataset, and the error bars span 1 standard deviation in either direction.")
-      )
-    }),
+    appGreeting,
     fluidRow(
       column(
-        width = 6,
-        selectInput('code', 'Record ID', choices = recordIds, selected = NULL)
+        width = 4,
+        selectInput('code', 'Record ID Filter', choices = recordIds, selected = NULL)
       ),
       column(
-        width = 6,
-        selectInput('site', 'Primary Tumor Site', choices = primarySite[c(1, 2, 4, 6, 7)], selected = primarySite[1])
+        width = 4,
+        selectInput('site', 'Primary Tumor Site Filter', choices = primarySite[c(1, 2, 4, 6, 7)], selected = primarySite[1])
+      ),
+      column(
+        width = 4,
+        selectInput('stage', 'Overall Stage Filter', choices = stages, selected = stages[1])
       )
     ),
+    fluidRow(
+      column(
+        width = 8,
+        textOutput("tumorSite", inline = TRUE)
+      )
+    ),
+    fluidRow(tags$p(' ')),
     #Adding tab content
     fluidRow(
       tabItems(
         tabItem(tabName = "dashboardP",
             box(
               width = 12,
-              tags$head(
-                tags$style(HTML(" #tabBox { height:90vh !important; } "))
-              ),
               plotOutput("event_pScore")
             )),
         tabItem(tabName = "dashboardS",
@@ -291,13 +333,26 @@ server <- function(input, output) {
   singleSub <- reactive(hnQolScored %>% 
                           filter(record_id == input$code)) 
   
-  
   filterSite <- reactive(
     hnQolScored() %>%
       filter(primarySite == input$site)
   )
+  
+  primarySiteR <- reactive(
+    singleSub() %>%
+    filter(record_id == input$code) %>%
+    select(primarySite) %>%
+    mutate(across(primarySite, as.character)) %>%
+    unique() %>%
+    singleTextValue()
+  )
 
 ########################################Reactive Output#######################################
+  output$tumorSite <- renderText({
+    paste("Selected record primary site:", primarySiteR())
+  })
+  
+  
   output$event_pScore <- renderPlot({
     hnQolScoredR() %>%
       ggplot(aes(redcap_event_name, uwPhysical)) + 
