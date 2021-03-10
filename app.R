@@ -23,7 +23,7 @@ library(grid)
 
 #Some functions written for this code 
 #Stat functions
-median_sd <- function(x, n=1) {
+median_sd <- function(x, n=1, na.rm = TRUE) {
   tibble(y = median(x),
          sd = sd(x),
          ymin = y - n*sd,
@@ -100,9 +100,9 @@ hnStageKey <- hNFiltered %>%
           overall_stage == 2 ~ 'I',
           overall_stage == 3 ~ 'II',
           overall_stage == 4 ~ 'III',
-          overall_stage == 5 ~ 'IVa',
-          overall_stage == 6 ~ 'IVb',
-          overall_stage == 7 ~ 'IVc'
+          overall_stage == 5 ~ 'IV',
+          overall_stage == 6 ~ 'IV',
+          overall_stage == 7 ~ 'IV'
         )
       )
     ) %>%
@@ -181,11 +181,12 @@ hnQolScored <- hNFiltered %>%
 #Grouped stats summaries of the data for separate geom plots
 groupedQolP <- hnQolScored %>%
   group_by(redcap_event_name) %>%
-  summarise(uwPhysical = mean(uwPhysical, na.rm = TRUE), .groups = 'keep')
+  filter(primarySite == "Oral Cavity") %>%
+  summarise(uwPhysical = median(uwPhysical, na.rm = TRUE), .groups = 'keep')
 
 groupedQolS <- hnQolScored %>%
   group_by(redcap_event_name) %>%
-  summarise(uwSocial = mean(uwSocial, na.rm = TRUE), .groups = 'keep')
+  summarise(uwSocial = median(uwSocial, na.rm = TRUE), .groups = 'keep')
 
 #KEY CODE - Single Record - Will need to make this reactive for app
 singleSub <- hnQolScored %>%
@@ -197,9 +198,7 @@ singleSub <- hnQolScored %>%
 #'good' example
 #filter(record_id == 220) #'bad' example
 
-#KEY CODE - Filter by site - Need to make this reactive
-hNQolScoredSite <- hnQolScored %>%
-  filter(primarySite == 'Oral Cavity')
+
 
 #ggplot items
 uwQolPlotPhysical <- ggplot(hnQolScored, aes(redcap_event_name, uwPhysical))
@@ -233,15 +232,16 @@ uwQolPlotPhysical +
 uwQolPlotPhysical + 
   geom_line(aes(group = record_id), color = 'gray') + 
   stat_summary(fun.data = median_sd, geom = "errorbar", width=0.1) +
-  stat_summary(data = groupedQolP, group = 1, fun = median, geom = 'line', color = 'black') +
-  stat_summary(data = groupedQolP, group = 1, fun = median, geom = 'point', shape = 17, size = 3, color = 'black') +
+  stat_summary(data = groupedQolP, group = 1, geom = 'line', color = 'black') +
+  stat_summary(data = groupedQolP, group = 1, geom = 'point', shape = 17, size = 3, color = 'black') +
   geom_point(data = singleSub, group = 1, color = 'red') + #individual patient
   geom_line(data = singleSub, group = 1, color = 'red', alpha = .5) #individual pt
 
 
-recordIds <- c(" ", hnQolScored$record_id)
+recordIds <- c("All records", hnQolScored$record_id)
 primarySite <- c("All sites", levels(hnQolScored$primarySite))
-stages <- c("All stages", levels(hnQolScored$overall_stage))
+stages <- sort(c("All stages", levels(hnQolScored$overallStage)))
+
 appGreeting <- 
   withTags({
     div(class = "header",
@@ -282,15 +282,21 @@ ui <- dashboardPage(
     fluidRow(
       column(
         width = 4,
-        selectInput('code', 'Record ID Filter', choices = recordIds, selected = NULL)
+        selectInput('code', 'Record ID Filter', choices = recordIds, selected = recordIds[1])
       ),
       column(
         width = 4,
-        selectInput('site', 'Primary Tumor Site Filter', choices = primarySite[c(1, 2, 4, 6, 7)], selected = primarySite[1])
+        selectInput('site', 'Primary Tumor Site Filter', choices = primarySite, selected = primarySite[1])
       ),
       column(
         width = 4,
-        selectInput('stage', 'Overall Stage Filter', choices = stages, selected = stages[1])
+        selectInput('stage', 'Overall Stage Filter', choices = stages[2:6], selected = stages[2])
+      )
+    ),
+    fluidRow(
+      column(
+        width = 8,
+        p("For Selected Record...")
       )
     ),
     fluidRow(
@@ -299,7 +305,13 @@ ui <- dashboardPage(
         textOutput("tumorSite", inline = TRUE)
       )
     ),
-    fluidRow(tags$p(' ')),
+    fluidRow(
+      column(
+        width = 8,
+        textOutput("tumorStage", inline = TRUE)
+      )
+    ),
+    br(),
     #Adding tab content
     fluidRow(
       tabItems(
@@ -321,14 +333,59 @@ ui <- dashboardPage(
 ########################################Reactive Data########################################
 server <- function(input, output) {
   
-  hnQolScoredR <- reactive({
-    if (input$site != "All sites") {
-      hnQolScored %<>% 
-        filter(primarySite == input$site)
-    } else {
+  ##The below two conditionals are essentially nested filter functions for the output.
+  ##The plots calculate the filteredStageR value which is calculated from the 
+  ##filteredSiteR value which is calculated from the dataset hnQolScored.
+  filteredSiteR <- reactive({
+    if (input$site == "All sites") {
       hnQolScored 
+    } else {
+      hnQolScored %>% 
+        filter(primarySite == input$site)
     }
   })
+  
+  filteredStageR <- reactive({
+    if (input$stage == "All stages") {
+      filteredSiteR()
+    } else {
+      filteredSiteR() %>%
+        filter(overallStage == input$stage)
+    }
+  })
+  
+  ######################Summary Objects###########################
+  groupedQol_siteR <- reactive({
+    if (input$site == "All sites") {
+      hnQolScored %>%
+        group_by(redcap_event_name)
+    } else {
+      hnQolScored %>%
+        group_by(redcap_event_name) %>%
+        filter(primarySite == input$site)
+    }
+  })
+  
+  groupedQol_stageR <- reactive({
+    if (input$stage == "All stages") {
+      groupedQol_siteR() 
+    } else {
+      groupedQol_siteR() %>%
+        filter(overallStage == input$stage)
+    }
+  })
+  
+  groupedQolPR <- reactive({
+    groupedQol_stageR() %>%
+      summarise(uwPhysical = median(uwPhysical, na.rm = TRUE), .groups = 'keep')
+  })
+  
+  groupedQolSR <- reactive({
+    groupedQol_stageR() %>%
+      summarise(uwSocial = median(uwSocial, na.rm = TRUE), .groups = 'keep')
+  })
+  
+  ################################################################
   
   singleSub <- reactive(hnQolScored %>% 
                           filter(record_id == input$code)) 
@@ -336,6 +393,11 @@ server <- function(input, output) {
   filterSite <- reactive(
     hnQolScored() %>%
       filter(primarySite == input$site)
+  )
+  
+  filterStage <- reactive(
+    hQolScored() %>%
+      filter(overallStage == input$stage)
   )
   
   primarySiteR <- reactive(
@@ -346,20 +408,35 @@ server <- function(input, output) {
     unique() %>%
     singleTextValue()
   )
+  
+  primaryStageR <- reactive(
+    singleSub() %>%
+      filter(record_id == input$code) %>%
+      select(overallStage) %>%
+      mutate(across(overallStage, as.character)) %>%
+      unique() %>%
+      singleTextValue()
+  )
 
 ########################################Reactive Output#######################################
   output$tumorSite <- renderText({
-    paste("Selected record primary site:", primarySiteR())
+    paste("Primary site:", primarySiteR())
   })
   
+  output$tumorStage <- renderText({
+    paste("Overall stage:", primaryStageR())
+  })
   
   output$event_pScore <- renderPlot({
-    hnQolScoredR() %>%
+    filteredStageR() %>%
       ggplot(aes(redcap_event_name, uwPhysical)) + 
+      scale_y_continuous(
+        limits = c(0, 110)
+      ) +
       geom_line(aes(group = record_id), color = 'gray') + 
       stat_summary(fun.data = median_sd, geom = "errorbar", size = 1, width=0.1) +
-      stat_summary(data = groupedQolP, group = 1, fun = median, geom = 'line', color = 'black') +
-      stat_summary(data = groupedQolP, group = 1, fun = median, geom = 'point', shape = 17, size = 3, color = 'black') +
+      stat_summary(data = groupedQolPR(), group = 1, fun = median, na.rm = TRUE, geom = 'line', color = 'black') +
+      stat_summary(data = groupedQolPR(), group = 1, fun = median, na.rm = TRUE, geom = 'point', shape = 17, size = 3, color = 'black') +
       geom_point(data = singleSub(), group = 1, size = 2, color = 'red') + #individual patient
       geom_line(data = singleSub(), group = 1, size = 1, color = 'red', alpha = .5) + #individual pt
       ggtitle('UW QOL \'Physical\' Score') +
@@ -367,12 +444,15 @@ server <- function(input, output) {
     })
   
   output$event_sScore <- renderPlot({
-    hnQolScoredR() %>%
+    filteredStageR() %>%
       ggplot(aes(redcap_event_name, uwSocial)) +
+      scale_y_continuous(
+        limits = c(0, 110)
+      ) +
       geom_line(aes(group = record_id), color = 'gray') + 
       stat_summary(fun.data = median_sd, geom = "errorbar", size = 1, width=0.1) +
-      stat_summary(data = groupedQolS, group = 1, fun = median, geom = 'line', color = 'black') +
-      stat_summary(data = groupedQolS, group = 1, fun = median, geom = 'point', shape = 17, size = 3, color = 'black') +
+      stat_summary(data = groupedQolSR(), group = 1, fun = median, na.rm = TRUE, geom = 'line', color = 'black') +
+      stat_summary(data = groupedQolSR(), group = 1, fun = median, na.rm = TRUE, geom = 'point', shape = 17, size = 3, color = 'black') +
       geom_point(data = singleSub(), group = 1, size = 2, color = 'red') + #individual patient
       geom_line(data = singleSub(), group = 1, size = 1, color = 'red', alpha = .5) + #individual pt
       ggtitle('UW QOL \'Social\' Score') +
