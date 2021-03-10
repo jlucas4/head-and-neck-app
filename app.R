@@ -27,8 +27,12 @@ median_sd <- function(x, n=1, na.rm = TRUE) {
   tibble(y = median(x),
          sd = sd(x),
          ymin = y - n*sd,
-         ymax = y + n*sd)
-}
+         ymax = if (y + n*sd > 100) {
+           100
+         } else {
+           y + n*sd
+         })
+  }
 
 se <- function(x, ...) {
   sqrt(var(x, ...)/length(x))
@@ -252,10 +256,12 @@ appGreeting <-
           "(UW-QOL) questionnaire administered to our patients at each visit."),
         p("Click the sidebars to see two subsets of the survey data - there is a section examining patient-specific 
           subjective physical effects and a section examining social effects. Within each section, you can look at the data as a whole,
-          or a subset of the data based on primary tumor site. The default selection is \'All sites\'"),
+          or a subset of the data based on the patient\'s primary tumor site and stage. The default selection is \'All sites\' and 
+          \'All stages\'."),
         p("Finally, each individual patient has a unique de-identified \'record-id\'. Select a record id
           to see the individual patient's data (in red) plotted against the whole dataset - be aware that not all records have plottable data 
-          (try out", tags$b("#220"), "and", tags$b("#258"), "to see working examples). The faded gray lines 
+          (try out", tags$b("#220"), "and", tags$b("#258"), "to see working examples). When selected, the application will tell you
+          the primary tumor site and the stage for a given record. The faded gray lines 
           represent individual patients and create a \'sphagetti plot\' in the background. The dark line and triangles
           represent the median of the dataset, and the error bars span 1 standard deviation in either direction.")
     )
@@ -431,7 +437,7 @@ server <- function(input, output) {
     filteredStageR() %>%
       ggplot(aes(redcap_event_name, uwPhysical)) + 
       scale_y_continuous(
-        limits = c(0, 110)
+        limits = c(0, 105)
       ) +
       geom_line(aes(group = record_id), color = 'gray') + 
       stat_summary(fun.data = median_sd, geom = "errorbar", size = 1, width=0.1) +
@@ -447,7 +453,7 @@ server <- function(input, output) {
     filteredStageR() %>%
       ggplot(aes(redcap_event_name, uwSocial)) +
       scale_y_continuous(
-        limits = c(0, 110)
+        limits = c(0, 105)
       ) +
       geom_line(aes(group = record_id), color = 'gray') + 
       stat_summary(fun.data = median_sd, geom = "errorbar", size = 1, width=0.1) +
