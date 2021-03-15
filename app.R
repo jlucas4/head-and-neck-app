@@ -24,73 +24,12 @@ library(grid)
 source('hnFunctions.R', local = TRUE)
 source('hnData.R', local = TRUE)
 source('hnObjects.R', local = TRUE)
+source('hnUI.R', local = TRUE)
 
 ########################################Application############################################
 ########################################User Interface#########################################
 # Define UI for app
-ui <- dashboardPage(
-  # dashboard titel
-  dashboardHeader(
-    title = "Head and Neck Database App",
-    titleWidth = 450
-    ),
-  dashboardSidebar(
-    sidebarMenu(
-      menuItem("\'Physical\' Score", tabName = "dashboardP", icon = icon("object-align-bottom", lib = "glyphicon")),
-      menuItem("\'Social\' Score", tabName = "dashboardS", icon = icon("hand-holding-medical"))
-    )
-  ),
-  dashboardBody(
-    titlePanel("Head and Neck - UW QOL Data"),
-    appGreeting,
-    fluidRow(
-      column(
-        width = 4,
-        selectInput('code', 'Record ID Filter', choices = recordIds, selected = recordIds[1])
-      ),
-      column(
-        width = 4,
-        selectInput('site', 'Primary Tumor Site Filter', choices = primarySite, selected = primarySite[1])
-      ),
-      column(
-        width = 4,
-        selectInput('stage', 'Overall Stage Filter', choices = stages[2:6], selected = stages[2])
-      )
-    ),
-    fluidRow(
-      column(
-        width = 8,
-        p("For Selected Record...")
-      )
-    ),
-    fluidRow(
-      column(
-        width = 8,
-        textOutput("tumorSite", inline = TRUE)
-      )
-    ),
-    fluidRow(
-      column(
-        width = 8,
-        textOutput("tumorStage", inline = TRUE)
-      )
-    ),
-    br(),
-    #Adding tab content
-    fluidRow(
-      tabItems(
-        tabItem(tabName = "dashboardP",
-            box(
-              width = 12,
-              plotOutput("event_pScore")
-            )),
-        tabItem(tabName = "dashboardS",
-            box(
-              width = 12,
-              plotOutput("event_sScore")
-            ))
-    ))
-  ))
+ui
 
 
 

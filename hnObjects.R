@@ -1,4 +1,8 @@
+source('hnData.R')
+source('hnFunctions.R')
+
 #Objects used in app
+#Make sure to reference the hnFunctions.R page for functions used here
 
 #Some HTML code for the front page
 appGreeting <- 
@@ -26,3 +30,36 @@ appGreeting <-
 recordIds <- c("All records", hnQolScored$record_id)
 primarySite <- c("All sites", levels(hnQolScored$primarySite))
 stages <- sort(c("All stages", levels(hnQolScored$overallStage)))
+
+#Filter inputs
+filterRecord  <- hnSelectInput('code', 'Record ID Filter', recordIds, recordIds[1])
+filterSite    <- hnSelectInput('site', 'Primary Tumor Site Filter', primarySite, primarySite[1])
+filterStage   <- hnSelectInput('stage', 'Overall Stage Filter', stages[2:6], stages[2])
+
+
+pTab <- hnTabItem("dashboardP", "event_pScore")
+sTab <- hnTabItem("dashboardS", "event_sScore")
+
+###############################Experimental Code#################################
+#The tribble function is interesting - you can make a small dataframe composed of 
+#arguments for a function. The pmap function can then accept the matrix of arguments 
+#which are defined by the vector names in the tribble. The downside for app building  
+#is that you lose some control over the layout when displayed. For this reason, I've 
+#defined individual functions rather than using the pmap function. 
+
+#First time using 'tribble'... not currently in use
+filters             <- tribble(
+     ~ id,                     ~ label,   ~ choices,     ~ selected,
+   'code',          'Record ID Filter',   recordIds,   recordIds[1],
+   'site', 'Primary Tumor Site Filter', primarySite, primarySite[1], 
+  'stage',      'Overall Stage Filter', stages[2:6],      stages[2]
+)
+inputFilters        <- pmap(filters, hnSelectInput) #applys selectInput to the tribble.
+#pmap applys the function to the tribble dataframe. Cool idea but difficult to define column width
+#and other stylistic choices so instead broke down into 3 separate functions as above.
+
+hnDashboards <- tribble(
+      ~tabName,    ~plotOutput,
+  'dashboardP', 'event_pScore',
+  'dashboardS', 'event_sScore'
+)
